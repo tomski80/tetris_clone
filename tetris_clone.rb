@@ -3,11 +3,14 @@ require 'gosu'
 class Tetris < Gosu::Window
 
   SHAPES = [:I, :J, :L, :O, :S, :T, :Z]
-  STAGE_SIZE = [15,28]
+  STAGE_SIZE = [10,22]
   MAX_STEP_SPEED  = 50
   MAX_MOVE_SPEED  = 5
   SCREEN_WIDTH = 640
   SCREEN_HEIGHT = 480
+  SPEED_TIERS = { 100 => 10, 400 => 20, 800 => 30, 1200 => 32,
+                  2000 => 34, 4000 => 36, 6000 => 38, 12000 => 40,
+                  24000 => 42, 48000 => 44, 96000 => 46 }
 
   def initialize()
     super SCREEN_WIDTH, SCREEN_HEIGHT
@@ -30,9 +33,9 @@ class Tetris < Gosu::Window
   end
 
   def update
-    move_block_one_step
+    move_block_one_step unless @pause
     rotate_block if (@turn && !@pause)
-    move_block_on_input
+    move_block_on_input unless @pause
     game_over if game_lost?
     lines_removed = @stage.remove_lines_and_update
     update_score(lines_removed)
@@ -61,6 +64,14 @@ class Tetris < Gosu::Window
       @score += rows_removed*100
     end
     @ui.update_score(@score)
+    update_speed
+  end
+
+  def update_speed()
+    SPEED_TIERS.keys.each do |key|
+      break if key > @score
+      @step_speed = SPEED_TIERS[key]
+    end
   end
 
   def move_block_on_input
@@ -105,9 +116,9 @@ class Tetris < Gosu::Window
     if @step_time > (MAX_STEP_SPEED - @step_speed) or Gosu.button_down? Gosu::KB_DOWN
       if @block.grounded?
         @stage.add(@block)
-        @block = Block.new(Block::SHAPES.keys.sample,@stage) unless @pause
+        @block = Block.new(Block::SHAPES.keys.sample,@stage)
       end
-      @block.step unless @pause
+      @block.step
       @step_time = 0
     end
   end
@@ -116,14 +127,6 @@ class Tetris < Gosu::Window
     @block.rotate if @block.rotate_possible?
     @turn = false
   end
-
-  def increase_speed
-    if (Time::now - @start_time) > 60
-      @start_time = Time.new
-      @step_speed += 1
-      puts "Incresed speed!"
-    end
-  end
 end
 
 class UI
@@ -131,7 +134,9 @@ class UI
 
   def initialize(score)
     @img_game_over = Gosu::Image.from_text("GAME OVER!", 26)
+    @img_restart = Gosu::Image.from_text("Press ENTER to restart game!", 22)
     @img_score = Gosu::Image.from_text(score.to_s, 24)
+    @img_score_description = Gosu::Image.from_text('Score : ', 24)
     @img_background = Gosu::Image.new("stage.bmp",retro:true)
     @game_over = false
   end
@@ -142,48 +147,18 @@ class UI
 
   def draw
     if @game_over
-    #x = ((STAGE_SIZE[0]/2) + STAGE_LEFT_WALL[0])*CELL_SIZE - (@img_game_over.width/2)
-    #y = ((STAGE_SIZE[1]/2) + STAGE_LEFT_WALL[1])*CELL_SIZE
     @img_game_over.draw(320,200,2)
+    @img_restart.draw(320,250,2)
     end
     @img_score.draw(320,50,2)
-=begin
-    #background around stage
-    x = SCREEN_WIDTH
-    y = STAGE_LEFT_WALL[1]*CELL_SIZE
-    @img_background.draw_as_quad(0,0,Gosu::Color::GRAY,
-                                 x,0,Gosu::Color::GRAY,
-                                 x,y,Gosu::Color::GRAY,
-                                 0,y,Gosu::Color::GRAY,2)
-
-    x = SCREEN_WIDTH
-    y = (STAGE_SIZE[1]*CELL_SIZE)+CELL_SIZE+2
-    @img_background.draw_as_quad(0,y,Gosu::Color::GRAY,
-                                 x,y,Gosu::Color::GRAY,
-                                 x,SCREEN_HEIGHT,Gosu::Color::GRAY,
-                                 0,SCREEN_HEIGHT,Gosu::Color::GRAY,2)
-
-    x = STAGE_LEFT_WALL[0]*CELL_SIZE-2
-    y = SCREEN_HEIGHT
-    @img_background.draw_as_quad(0,0,Gosu::Color::GRAY,
-                                 x,0,Gosu::Color::GRAY,
-                                 x,y,Gosu::Color::GRAY,
-                                 0,y,Gosu::Color::GRAY,2)
-
-    x = (STAGE_LEFT_WALL[0]+STAGE_SIZE[0])*CELL_SIZE+2
-    y = SCREEN_HEIGHT
-    @img_background.draw_as_quad(x,0,Gosu::Color::GRAY,
-                                 SCREEN_WIDTH,0,Gosu::Color::GRAY,
-                                 x,y,Gosu::Color::GRAY,
-                                 SCREEN_WIDTH,y,Gosu::Color::GRAY,2)
-=end
+    @img_score_description.draw(250,50,2)
   end
 end
 
 
 class Cell
 
-  SIZE = 16
+  SIZE = 20
   Z_POS = 1
 
   attr_reader :image, :color
